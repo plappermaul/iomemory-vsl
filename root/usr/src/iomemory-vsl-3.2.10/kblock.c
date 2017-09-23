@@ -912,7 +912,7 @@ static void kfio_dump_bio(const char *msg, const struct bio * const bio)
     // Use a local conversion to avoid printf format warnings on some platforms
     sector = (uint64_t)BI_SECTOR(bio);
 
-    infprint("%s: sector: %llx: flags: %x : rw: %lx : vcnt: %x", msg,
+    infprint("%s: sector: %llx: flags: %lx : rw: %lx : vcnt: %x", msg,
              sector, bio->bi_flags, bio->bi_rw, bio->bi_vcnt);
     infprint("%s : idx: %x : phys_segments: %x : size: %x",
              msg, BI_IDX(bio), bio->bi_phys_segments, BI_SIZE(bio));
@@ -930,10 +930,15 @@ static void kfio_dump_bio(const char *msg, const struct bio * const bio)
 #if KFIOC_HAS_BIO_COMP_CPU
     infprint("%s: comp_cpu %u", msg, bio->bi_comp_cpu);
 #endif
-
+#if KFIOC_HAS_BIO_BI_CNT
+#define BI_CNT &bio->bi_cnt
+#else
+#define BI_CNT &bio->__bi_cnt
+#endif
     infprint("%s: max_vecs: %x : cnt %x : io_vec %p : end_io: %p : private: %p",
-             msg, bio->bi_max_vecs, atomic_read(&bio->__bi_cnt), bio->bi_io_vec,
+             msg, bio->bi_max_vecs, atomic_read(BI_CNT), bio->bi_io_vec,
              bio->bi_end_io, bio->bi_private);
+
 #if KFIOC_BIO_HAS_DESTRUCTOR
     infprint("%s: destructor: %p", msg, bio->bi_destructor);
 #endif
@@ -974,8 +979,10 @@ static void __kfio_bio_complete(struct bio *bio, uint32_t bytes_complete, int er
 {
     bio_endio(bio
 #if ! KFIOC_BIO_ENDIO_REMOVED_BYTES_DONE
-              ,bytes_complete,
-              error
+              ,bytes_complete
+#if  KFIOC_BIO_ENDIO_HAS_ERROR
+              ,error
+#endif /* KFIOC_BIO_ENDIO_HAS_ERROR */
 #endif /* ! KFIO_BIO_ENDIO_REMOVED_BYTES_DONE */
     );
 }
@@ -2300,7 +2307,7 @@ static kfio_bio_t *kfio_request_to_bio(kfio_disk_t *disk, struct request *req,
                 int bv_i;
 #endif
 
-                errprint("\tbio %p sector %lu size 0x%08x flags 0x%08x rw 0x%08lx\n", lbio,
+                errprint("\tbio %p sector %lu size 0x%08x flags 0x%08lx rw 0x%08lx\n", lbio,
                          (unsigned long)BI_SECTOR(lbio), BI_SIZE(lbio), lbio->bi_flags, lbio->bi_rw);
                 errprint("\t\tvcnt %u idx %u\n", lbio->bi_vcnt, BI_IDX(lbio));
 

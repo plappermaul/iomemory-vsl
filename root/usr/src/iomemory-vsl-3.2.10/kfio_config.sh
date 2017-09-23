@@ -72,6 +72,7 @@ KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
 KFIOC_HAS_LINUX_SCATTERLIST_H
 KFIOC_KMEM_CACHE_CREATE_REMOVED_DTOR
 KFIOC_BIO_ENDIO_REMOVED_BYTES_DONE
+KFIOC_BIO_ENDIO_HAS_ERROR
 KFIOC_INVALIDATE_BDEV_REMOVED_DESTROY_DIRTY_BUFFERS
 KFIOC_NEEDS_VIRT_TO_PHYS
 KFIOC_HAS_BLK_UNPLUG
@@ -138,6 +139,7 @@ KFIOC_HAS_QUEUE_FLAG_CLUSTER
 KFIOC_HAS_QUEUE_LIMITS_CLUSTER
 KFIOC_HAS_QUEUE_FLAG_CLEAR_UNLOCKED
 KFIOC_HAS_BIO_COMP_CPU
+KFIOC_HAS_BIO_BI_CNT
 KFIOC_BVEC_KMAP_IRQ_HAS_LONG_FLAGS
 KFIOC_MAKE_REQUEST_FN_VOID
 KFIOC_HAS_BLK_FS_REQUEST
@@ -724,7 +726,7 @@ void kfioc_test_kmem_cache_create(void) {
 #                 0     for older kernels that have the bytes_done argument to bio_endio
 #                 1     for kernels that removed the bytes_done argument to bio_endio
 # git commit:     6712ecf8f648118c3363c142196418f89a510b90
-# comments:       API and ABI incompatible.
+# comments:       API and ABI incompatible. till 4.3 it had 2 args, not 3 as assumed...
 KFIOC_BIO_ENDIO_REMOVED_BYTES_DONE()
 {
     local test_flag="$1"
@@ -736,6 +738,26 @@ void kfioc_test_bio_endio(void) {
 }
 '
     
+    kfioc_test "$test_code" "$test_flag" 1
+}
+
+# flag:           KFIOC_BIO_ENDIO_HAS_ERROR
+# values:
+#                 0     for kernels before 2.6.24
+#                 1     for kernels before 4.3
+# git commit:     $Id$
+# comments:       API and ABI incompatible.
+KFIOC_BIO_ENDIO_HAS_ERROR()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/bio.h>
+
+void kfioc_test_bio_endio(void) {
+    bio_endio(NULL, 1, 1);
+}
+'
+
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -2051,6 +2073,29 @@ void has_bio_comp_cpu(void)
 '
     kfioc_test "$test_code" KFIOC_HAS_BIO_COMP_CPU 1 -Werror
 }
+
+# flag:          KFIOC_HAS_BIO_BI_CNT
+# usage:         1   struct bio has a bi_cnt member
+#                0   It does not
+KFIOC_HAS_BIO_BI_CNT()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/module.h>
+#include <linux/atomic.h>
+#include <linux/blkdev.h>
+void has_bio_comp_cpu(void)
+{
+    struct bio bio;
+    static atomic_t cnt = ATOMIC_INIT(0);
+    bio.bi_cnt = cnt;
+}
+
+'
+    kfioc_test "$test_code" KFIOC_HAS_BIO_BI_CNT 1 -Werror
+}
+
+
 
 # flag:          KFIOC_SGLIST_NEW_API
 # usage:         1   Kernel supports new sglist API
